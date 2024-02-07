@@ -32,11 +32,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install tests dependencies
-        run: cd backend && pip install -r requirements/test.txt
-      - name: Run tests
-        run: cd backend && pytest
+      - name: Install backend tests dependencies and run tests
+        run: cd backend && pip install -r requirements/test.txt && pytest
       - uses: actions/setup-node@v4
         with:
           node-version: '21'
-      - run: cd frontend && npm run test:unit
+      - name: Install frontend dependencies and run tests
+        run: cd frontend && npm install && npm run test:unit
