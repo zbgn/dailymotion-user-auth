@@ -46,10 +46,10 @@ cd dailymotion-user-auth
 From the root of the project directory, run:
 
 ```bash
-docker-compose up --build
+docker-compose up -d
 ```
 
-This command builds the images and starts the containers for the FastAPI backend, Vue.js frontend, PostgreSQL database, and Maildev.
+This command will build the Docker images and start the containers.
 
 ### 3. Accessing the Application
 The FastAPI backend is accessible at http://localhost:8000
@@ -70,7 +70,7 @@ The frontend code is located in the frontend directory. Use npm to install any a
 
 ```bash
 cd frontend
-npm install .
+npm install
 ```
 To run the frontend locally (outside Docker) for development purposes:
 ```bash
@@ -95,7 +95,7 @@ To execute frontend tests, run:
 
 ```bash
 cd frontend
-npm run test
+npm run test:unit
 ```
 
 ## Deployment
