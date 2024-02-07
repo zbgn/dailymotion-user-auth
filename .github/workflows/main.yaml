@@ -1,0 +1,39 @@
+name: Dailymotion Actions
+on: [ push, pull_request ]
+
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chartboost/ruff-action@v1
+        with:
+          src: './backend'
+          args: 'check --fix'
+      - uses: chartboost/ruff-action@v1
+        with:
+          src: './backend'
+          args: 'format'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '21'
+      - run: npm lint
+      - run: npm format
+  
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      - name: Install tests dependencies
+        run: pip install -r requirements/test.txt
+      - name: Run tests
+        run: pytest
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '21'
+      - run: npm test

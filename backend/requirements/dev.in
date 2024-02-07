@@ -1,0 +1,5 @@
+-r main.in
+-r test.in
+ruff==0.2.0
+pip-tools==7.3.0
+invoke==2.2.0

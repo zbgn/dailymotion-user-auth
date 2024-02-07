@@ -1,0 +1,19 @@
+{
+    "sqltools.connections": [
+        {
+            "previewLimit": 50,
+            "driver": "SQLite",
+            "name": "NPM-sqlite",
+            "database": "C:\\Users\\Zackary Beaugelin\\Documents\\database.sqlite"
+        },
+        {
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "Dailymotion",
+            "database": "dbname",
+            "username": "user"
+        }
+    ]
+}

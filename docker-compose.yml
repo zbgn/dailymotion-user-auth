@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        - REQUIREMENTS=test # set to main for production
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --reload
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://user:password@db/dbname
+      SMTP_SERVER: maildev
+      SMTP_PORT: 1025
+      TZ: Europe/Paris
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "8080:8080"
+    environment:
+      VUE_APP_BACKEND_URL: http://localhost:8000
+      TZ: Europe/Paris
+
+  db:
+    image: postgres:16
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: dbname
+      TZ: Europe/Paris
+    ports:
+      - "5432:5432"
+
+  maildev:
+    image: maildev/maildev:2.1.0
+    ports:
+      - "1080:1080"  # Web interface
+      - "1025:1025"  # SMTP Server
+    environment:
+      - TZ=Europe/Paris
+
+volumes:
+  postgres_data:
