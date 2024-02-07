@@ -20,9 +20,9 @@ jobs:
         with:
           node-version: '21'
       - name: Install frontend dependencies
-        run: npm install
+        run: cd frontend && npm install
       - name: Lint frontend
-        run: npm run lint && npm run format
+        run: cd frontend; npm run lint && npm run format
   
   test:
     runs-on: ubuntu-latest
