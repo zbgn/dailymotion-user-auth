@@ -1,13 +1,8 @@
 """Email service."""
 
 import enum
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 
-from colorlog import getLogger
-
-from app.infrastructure.settings import get_settings
+from app.infrastructure.email_client import EmailClient
 
 
 class EmailSubject(enum.Enum):
@@ -22,7 +17,7 @@ mails = {
     EmailSubject.ACTIVATED: "Congratulations! Your account has been activated",
 }
 
-logger = getLogger(__name__)
+email_client = EmailClient()
 
 
 async def send_email(email: str, subject: EmailSubject, *_: dict, **kwargs: dict) -> None:
@@ -36,26 +31,10 @@ async def send_email(email: str, subject: EmailSubject, *_: dict, **kwargs: dict
         **kwargs: Additional keyword arguments.
 
     """
-    settings = get_settings()
-    server = smtplib.SMTP(settings.smtp_server, settings.smtp_port)
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject.value
-        msg["From"] = "dailymotion@auth.dev"
-        msg["To"] = email
-        text = mails[subject].format(kwargs.get("token"))
-        html = text
-        part1 = MIMEText(text, "plain")
-        part2 = MIMEText(html, "html")
-        msg.attach(part1)
-        msg.attach(part2)
-        server.sendmail("dailymotion@auth.dev", email, msg.as_string())
-    except (
-        smtplib.SMTPHeloError,
-        smtplib.SMTPRecipientsRefused,
-        smtplib.SMTPSenderRefused,
-        smtplib.SMTPNotSupportedError,
-    ) as e:
-        logger.exception("Error sending email", exc_info=e)
-    finally:
-        server.quit()
+    if subject is EmailSubject.WELCOME:
+        token = kwargs.get("token")
+        await email_client.send_activation_email(email=email, token=token)
+        return
+
+    if subject is EmailSubject.ACTIVATED:
+        await email_client.send_account_activated_email(email=email)
