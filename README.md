@@ -34,18 +34,20 @@ The codebase uses a pragmatic layered structure:
 
 ```mermaid
 graph TD
-        Client[Client] --> API[FastAPI Routers]
-        API --> Service[AuthService]
-        Service --> UserRepo[UserRepository]
-        Service --> TokenRepo[ActivationTokenRepository]
-        Service --> MailSvc[Email Service]
-        UserRepo --> PG[(PostgreSQL)]
-        TokenRepo --> PG
-        MailSvc --> SMTP[EmailClient -> SMTP/Maildev]
+    Client[Client] --> FastAPI[FastAPI API Routers]
+    FastAPI --> AuthService[AuthService]
+    FastAPI --> ExceptionHandlers[Centralized Exception Handlers]
 
-        API --> Handlers[Centralized Error Handlers]
-        API --> DI[FastAPI Dependencies]
-        App[FastAPI App Lifespan] --> DBPool[DB Pool Startup/Shutdown]
+    AuthService --> UserRepository[UserRepository]
+    AuthService --> TokenRepository[ActivationTokenRepository]
+    AuthService --> EmailService[Email Service]
+
+    UserRepository --> Postgres[(PostgreSQL)]
+    TokenRepository --> Postgres
+    EmailService --> EmailClient[EmailClient]
+    EmailClient --> Maildev[SMTP Third-Party / Maildev]
+
+    AppLifespan[FastAPI Lifespan] --> DbPool[DB Pool Startup/Shutdown]
 ```
 
 ## Runtime Configuration
