@@ -2,6 +2,7 @@
 
 from fastapi import FastAPI
 
+from app.api.error_handlers import register_error_handlers
 from app.api.routers.v1.health import router as health_router
 from app.api.routers.v1.user_api import router as user_router
 
@@ -10,6 +11,8 @@ app = FastAPI(
     description="A simple authentication service",
     version="0.1.0",
 )
+
+register_error_handlers(app)
 
 app.include_router(user_router)
 app.include_router(user_router, prefix="/api/v1")

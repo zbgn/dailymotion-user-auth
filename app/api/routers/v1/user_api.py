@@ -8,14 +8,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from app.api.dependencies import get_auth_service
 from app.api.schemas.auth import ActivationRequest, RegistrationRequest
-from app.domain.exceptions import (
-    ExpiredActivationCodeError,
-    InvalidActivationCodeError,
-    InvalidCredentialsError,
-    UserAlreadyActiveError,
-    UserAlreadyExistsError,
-    UserNotFoundError,
-)
+from app.domain.exceptions import DomainError
 from app.models.user import User
 from app.services.auth_service import AuthService
 
@@ -34,11 +27,8 @@ async def register_user(
     """Register a new user."""
     try:
         return await auth_service.register(payload.email, payload.password)
-    except UserAlreadyExistsError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        ) from None
+    except DomainError:
+        raise
     except Exception as e:
         logger.exception("Error creating user", exc_info=e)
         raise HTTPException(
@@ -60,26 +50,8 @@ async def activate_user(
             password=credentials.password,
             token=payload.token,
         )
-    except (UserNotFoundError, InvalidCredentialsError) as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
-    except UserAlreadyActiveError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User already active",
-        ) from None
-    except InvalidActivationCodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid token",
-        ) from None
-    except ExpiredActivationCodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Expired token",
-        ) from None
+    except DomainError:
+        raise
     except Exception as e:
         logger.exception("Error activating user", exc_info=e)
         raise HTTPException(
