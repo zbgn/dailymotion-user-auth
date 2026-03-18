@@ -126,12 +126,16 @@ def _mock_db(monkeypatch) -> None:  # noqa: ANN001
     ("mock_user", "status_code", "error_msg"),
     [
         ({"email": "test@example.com", "password": "password123"}, HTTPStatus.OK, None),
-        ({"exist": True}, HTTPStatus.BAD_REQUEST, "Email already registered"),
+        (
+            {"email": "test@example.com", "password": "password123", "exist": True},
+            HTTPStatus.BAD_REQUEST,
+            "Email already registered",
+        ),
     ],
     indirect=["mock_user"],
 )
 @pytest.mark.usefixtures("_mock_db", "_mock_token", "_mock_email_service")
-        ({"email": "test@example.com", "password": "password123", "exist": True}, HTTPStatus.BAD_REQUEST, "Email already registered"),
+async def test_register_user(mock_user, status_code, error_msg) -> None:  # noqa: ANN001
     """Test the user registration endpoint."""
     email = mock_user.get("email")
     password = mock_user.get("password")
