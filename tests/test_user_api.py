@@ -20,56 +20,52 @@ TOKEN_LENGTH = 4
 
 @pytest.fixture
 def mock_user(request, monkeypatch) -> None:  # noqa: ANN001
-    """Mock the user model."""
+    """Mock the user repository."""
     defined_email = request.param.get("email")
     defined_password = request.param.get("password")
     defined_exist = request.param.get("exist", False)
 
-    class MockUser:
-        get_counter = 0
-        mocked_user_logger = getLogger("mocked_user")
-
-        @classmethod
-        async def create(cls: "MockUser", email: str, password: str) -> None:
+    class MockUserRepository:
+        async def create(self: "MockUserRepository", email: str, password: str) -> None:
             _ = email, password
             if defined_email:
                 return User(id=1, email=defined_email, password=defined_password, is_active=False)
             return None
 
-        @classmethod
-        async def get_by_email(cls: "MockUser", email: str, password: str) -> None:
+        async def get_by_email(self: "MockUserRepository", email: str, password: str) -> None:
             _ = email, password
             return User(id=1, email=email, is_active=False)
 
-        @classmethod
-        async def exists(cls: "MockUser", email: str) -> None:
+        async def exists(self: "MockUserRepository", email: str) -> None:
             _ = email
             return defined_exist
 
-    monkeypatch.setattr("app.api.routers.v1.user_api.User", MockUser)
+        async def activate(self: "MockUserRepository", user_id: int) -> None:
+            _ = user_id
+            return User(id=1, email=defined_email, is_active=True)
+
+    monkeypatch.setattr("app.api.routers.v1.user_api.user_repository", MockUserRepository())
     return {"email": defined_email, "password": defined_password}
 
 
 @pytest.fixture
 def _mock_token(monkeypatch) -> None:  # noqa: ANN001
-    """Mock the token model."""
+    """Mock the token repository."""
 
-    class MockToken:
+    class MockTokenRepository:
         token_code: str
 
-        @classmethod
-        async def create(cls: "MockToken", code: str, user_id: int) -> None:
-            cls.token_code = code
+        async def create(self: "MockTokenRepository", code: str, user_id: int) -> None:
+            self.token_code = code
             valid_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
             return Token(id=1, code=code, user_id=user_id, valid_until=valid_until)
 
-        @classmethod
-        async def get_by_user_email(cls: "MockToken", email: str) -> None:
+        async def get_by_user_email(self: "MockTokenRepository", email: str) -> None:
             _ = email
             valid_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
-            return Token(id=1, code=cls.token_code, user_id=1, valid_until=valid_until)
+            return Token(id=1, code=self.token_code, user_id=1, valid_until=valid_until)
 
-    monkeypatch.setattr("app.api.routers.v1.user_api.Token", MockToken)
+    monkeypatch.setattr("app.api.routers.v1.user_api.token_repository", MockTokenRepository())
 
 
 @pytest.fixture
