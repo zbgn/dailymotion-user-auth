@@ -2,6 +2,7 @@
 
 import datetime
 
+import asyncpg
 import pytz
 
 from app.infrastructure.db import get_db_connection
@@ -16,9 +17,16 @@ class ActivationTokenRepository:
         """Initialize repository with an optional database URL override."""
         self.database_url = database_url or get_settings().database_url
 
-    async def create(self, code: str, user_id: int) -> Token:
+    async def create(
+        self,
+        code: str,
+        user_id: int,
+        conn: asyncpg.Connection | None = None,
+    ) -> Token:
         """Create a token for a user."""
-        conn = await get_db_connection(self.database_url)
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
         try:
             token = await conn.fetchrow(
                 "INSERT INTO tokens (code, user_id, valid_until) VALUES ($1, $2, $3) RETURNING *",
@@ -28,11 +36,18 @@ class ActivationTokenRepository:
             )
             return Token(**token)
         finally:
-            await conn.close()
+            if owns_connection:
+                await conn.close()
 
-    async def get_by_user_email(self, user_email: str) -> Token | None:
+    async def get_by_user_email(
+        self,
+        user_email: str,
+        conn: asyncpg.Connection | None = None,
+    ) -> Token | None:
         """Get latest token by user email."""
-        conn = await get_db_connection(self.database_url)
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
         try:
             token = await conn.fetchrow(
                 "SELECT * FROM tokens WHERE user_id = (SELECT id FROM users WHERE email = $1) "
@@ -43,4 +58,20 @@ class ActivationTokenRepository:
                 return None
             return Token(**token)
         finally:
-            await conn.close()
+            if owns_connection:
+                await conn.close()
+
+    async def invalidate_for_user(self, user_id: int, conn: asyncpg.Connection | None = None) -> None:
+        """Invalidate all activation tokens for a user."""
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
+        try:
+            await conn.execute(
+                "UPDATE tokens SET valid_until = $2 WHERE user_id = $1",
+                user_id,
+                datetime.datetime.now(tz=pytz.utc).replace(tzinfo=None),
+            )
+        finally:
+            if owns_connection:
+                await conn.close()

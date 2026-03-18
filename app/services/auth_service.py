@@ -2,6 +2,8 @@
 
 import random
 
+import asyncpg
+
 from app.domain.exceptions import (
     ExpiredActivationCodeError,
     InvalidActivationCodeError,
@@ -10,6 +12,8 @@ from app.domain.exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError,
 )
+from app.infrastructure.db import get_db_connection
+from app.infrastructure.settings import get_settings
 from app.models.user import User
 from app.repositories.activation_token_repository import ActivationTokenRepository
 from app.repositories.user_repository import UserRepository
@@ -22,36 +26,57 @@ token_repository = ActivationTokenRepository()
 class AuthService:
     """Pragmatic orchestration for register/activate use cases."""
 
+    def __init__(self, database_url: str | None = None) -> None:
+        """Initialize service with optional database URL override."""
+        self.database_url = database_url or get_settings().database_url
+
     async def register(self, email: str, password: str) -> User:
         """Register a user and send an activation code by email."""
-        if await user_repository.exists(email):
-            raise UserAlreadyExistsError
+        conn = await get_db_connection(self.database_url)
+        try:
+            async with conn.transaction():
+                if await user_repository.exists(email, conn=conn):
+                    raise UserAlreadyExistsError
 
-        user = await user_repository.create(email=email, password=password)
-        code = "".join([str(random.randint(0, 9)) for _ in range(4)])  # noqa: S311
-        token = await token_repository.create(code=code, user_id=user.id)
+                try:
+                    user = await user_repository.create(email=email, password=password, conn=conn)
+                except asyncpg.UniqueViolationError as exc:
+                    raise UserAlreadyExistsError from exc
+
+                code = "".join([str(random.randint(0, 9)) for _ in range(4)])  # noqa: S311
+                token = await token_repository.create(code=code, user_id=user.id, conn=conn)
+        finally:
+            await conn.close()
+
         await send_email(email=user.email, subject=EmailSubject.WELCOME, token=token.code)
         return user
 
     async def activate(self, email: str, password: str, token: str) -> User:
         """Activate a user account with Basic Auth identity and activation code."""
+        conn = await get_db_connection(self.database_url)
         try:
-            user = await user_repository.get_by_email(email, password)
-        except ValueError as exc:
-            if str(exc) == "User not found":
-                raise UserNotFoundError from exc
-            raise InvalidCredentialsError from exc
+            async with conn.transaction():
+                try:
+                    user = await user_repository.get_by_email(email, password, conn=conn)
+                except ValueError as exc:
+                    if str(exc) == "User not found":
+                        raise UserNotFoundError from exc
+                    raise InvalidCredentialsError from exc
 
-        if user.is_active:
-            raise UserAlreadyActiveError
+                if user.is_active:
+                    raise UserAlreadyActiveError
 
-        latest_token = await token_repository.get_by_user_email(email)
-        if latest_token is None or latest_token.code != token:
-            raise InvalidActivationCodeError
+                latest_token = await token_repository.get_by_user_email(email, conn=conn)
+                if latest_token is None or latest_token.code != token:
+                    raise InvalidActivationCodeError
 
-        if not latest_token.is_valid:
-            raise ExpiredActivationCodeError
+                if not latest_token.is_valid:
+                    raise ExpiredActivationCodeError
 
-        updated_user = await user_repository.activate(user.id)
+                updated_user = await user_repository.activate(user.id, conn=conn)
+                await token_repository.invalidate_for_user(user.id, conn=conn)
+        finally:
+            await conn.close()
+
         await send_email(email, EmailSubject.ACTIVATED)
         return updated_user

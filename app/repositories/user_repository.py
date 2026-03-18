@@ -1,5 +1,7 @@
 """Repository for user persistence operations."""
 
+import asyncpg
+
 from app.infrastructure.db import get_db_connection
 from app.infrastructure.settings import get_settings
 from app.models.user import User
@@ -12,9 +14,16 @@ class UserRepository:
         """Initialize repository with an optional database URL override."""
         self.database_url = database_url or get_settings().database_url
 
-    async def create(self, email: str, password: str) -> User:
+    async def create(
+        self,
+        email: str,
+        password: str,
+        conn: asyncpg.Connection | None = None,
+    ) -> User:
         """Create a user and return the persisted projection."""
-        conn = await get_db_connection(self.database_url)
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
         try:
             hashed_password = await conn.fetchval("SELECT crypt($1, gen_salt('bf'))", password)
             user = await conn.fetchrow(
@@ -24,24 +33,35 @@ class UserRepository:
             )
             return User(**user)
         finally:
-            await conn.close()
+            if owns_connection:
+                await conn.close()
 
-    async def exists(self, email: str) -> bool:
+    async def exists(self, email: str, conn: asyncpg.Connection | None = None) -> bool:
         """Check if a user exists by email."""
-        conn = await get_db_connection(self.database_url)
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
         try:
             user = await conn.fetchval("SELECT id FROM users WHERE email = $1", email)
             return bool(user)
         finally:
-            await conn.close()
+            if owns_connection:
+                await conn.close()
 
-    async def get_by_email(self, email: str, password: str) -> User:
+    async def get_by_email(
+        self,
+        email: str,
+        password: str,
+        conn: asyncpg.Connection | None = None,
+    ) -> User:
         """Get user by email if password is valid."""
-        if not await self.exists(email):
+        if not await self.exists(email, conn=conn):
             msg = "User not found"
             raise ValueError(msg)
 
-        conn = await get_db_connection(self.database_url)
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
         try:
             user = await conn.fetchrow(
                 "SELECT id, email, is_active FROM users WHERE email = $1 and password = crypt($2, password)",
@@ -53,14 +73,18 @@ class UserRepository:
                 raise ValueError(msg)
             return User(**user)
         finally:
-            await conn.close()
+            if owns_connection:
+                await conn.close()
 
-    async def activate(self, user_id: int) -> User:
+    async def activate(self, user_id: int, conn: asyncpg.Connection | None = None) -> User:
         """Activate a user and return the updated projection."""
-        conn = await get_db_connection(self.database_url)
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
         try:
             await conn.execute("UPDATE users SET is_active = TRUE WHERE id = $1", user_id)
             user = await conn.fetchrow("SELECT id, email, is_active FROM users WHERE id = $1", user_id)
             return User(**user)
         finally:
-            await conn.close()
+            if owns_connection:
+                await conn.close()
