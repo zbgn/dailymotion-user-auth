@@ -44,7 +44,7 @@ def mock_user(request, monkeypatch) -> None:  # noqa: ANN001
             _ = user_id
             return User(id=1, email=defined_email, is_active=True)
 
-    monkeypatch.setattr("app.api.routers.v1.user_api.user_repository", MockUserRepository())
+    monkeypatch.setattr("app.services.auth_service.user_repository", MockUserRepository())
     return {"email": defined_email, "password": defined_password}
 
 
@@ -65,7 +65,7 @@ def _mock_token(monkeypatch) -> None:  # noqa: ANN001
             valid_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
             return Token(id=1, code=self.token_code, user_id=1, valid_until=valid_until)
 
-    monkeypatch.setattr("app.api.routers.v1.user_api.token_repository", MockTokenRepository())
+    monkeypatch.setattr("app.services.auth_service.token_repository", MockTokenRepository())
 
 
 @pytest.fixture
@@ -82,7 +82,7 @@ def _mock_email_service(monkeypatch) -> None:  # noqa: ANN001
         else:
             logger.info("Sending email to %s with subject %s", email, subject)
 
-    monkeypatch.setattr("app.api.routers.v1.user_api.send_email", send_email)
+    monkeypatch.setattr("app.services.auth_service.send_email", send_email)
 
 
 @pytest.fixture
