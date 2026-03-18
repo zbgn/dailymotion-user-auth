@@ -1,21 +1,22 @@
-# Use the official Python base image
 FROM python:3.12-slim
 
-# Set the working directory in the container
+ENV PYTHONDONTWRITEBYTECODE=1 \
+	PYTHONUNBUFFERED=1 \
+	UV_PROJECT_ENVIRONMENT=/opt/venv \
+	PATH="/opt/venv/bin:$PATH"
+
 WORKDIR /app
 
-# Install uv
-RUN pip install --upgrade pip
-RUN pip install uv
+RUN pip install --no-cache-dir --upgrade pip \
+	&& pip install --no-cache-dir uv
 
-# Copy the rest of the application code to the working directory
-COPY . .
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --group test --no-install-project
 
-# Install dependencies from lock file
-RUN uv sync --frozen --group test
+COPY app ./app
+COPY tests ./tests
+COPY postgres-entrypoint-initdb.d ./postgres-entrypoint-initdb.d
 
-# Expose the port on which the FastAPI app will run
 EXPOSE 8000
 
-# Start the FastAPI app
 CMD ["uv", "run", "fastapi", "run", "app/main.py", "--host", "0.0.0.0", "--port", "8000"]

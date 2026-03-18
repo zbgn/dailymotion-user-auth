@@ -1,12 +1,12 @@
 # dailymotion-user-auth
 
-This project demonstrates a FastAPI backend service with PostgreSQL for the database and Maildev for email testing.
+This project is a FastAPI backend service with PostgreSQL for persistence and Maildev for local SMTP testing.
 
 ## Features
 
-- User registration, login, and account activation via email code.
+- User registration and account activation via email code.
 - Email testing with Maildev.
-- Containerized application setup with Docker.
+- Reproducible containerized runtime and tests with Docker/Compose.
 
 ## Architecture
 
@@ -24,7 +24,6 @@ graph TD
 ## Prerequisites
 
 - Docker and Docker Compose
-- uv
 
 ## Getting Started
 
@@ -41,7 +40,7 @@ cd dailymotion-user-auth
 From the root of the project directory, run:
 
 ```bash
-docker-compose up -d
+docker compose up --build -d
 ```
 
 This command will build the Docker images and start the containers.
@@ -53,6 +52,19 @@ Maildev is accessible at http://localhost:1080
 
 ### 4. API Documentation
 FastAPI generates interactive API documentation using Swagger UI. Once the backend service is running, you can access the documentation at http://localhost:8000/docs.
+
+### 5. Run Tests (Reproducible, Docker-only)
+Run the test suite inside the backend container image:
+
+```bash
+docker compose run --rm backend uv run pytest
+```
+
+Stop all services when done:
+
+```bash
+docker compose down -v
+```
 
 ## Development
 Install dependencies:

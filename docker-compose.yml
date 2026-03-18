@@ -1,19 +1,16 @@
-version: '3.8'
-
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        - REQUIREMENTS=test # set to main for production
-    volumes:
-      - .:/app
-    command: uv run fastapi dev app/main.py --host 0.0.0.0 --port 8000
+    command: uv run fastapi run app/main.py --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      maildev:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql://user:password@db/dbname
       SMTP_SERVER: maildev
@@ -30,6 +27,11 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: dbname
       TZ: Europe/Paris
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d dbname"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     ports:
       - "5432:5432"
 
