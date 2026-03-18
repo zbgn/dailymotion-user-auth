@@ -1,6 +1,7 @@
 """User API."""
 
 import random
+from typing import Annotated
 
 from colorlog import getLogger
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,7 +22,7 @@ user_repository = UserRepository()
 token_repository = ActivationTokenRepository()
 
 
-@router.post("/register/", response_model=User)
+@router.post("/register/")
 async def register_user(payload: RegistrationRequest) -> User:
     """Register a new user."""
     email = payload.email
@@ -46,10 +47,10 @@ async def register_user(payload: RegistrationRequest) -> User:
     return user
 
 
-@router.post("/activate/", response_model=User)
+@router.post("/activate/")
 async def activate_user(
     payload: ActivationRequest,
-    credentials: HTTPBasicCredentials = Depends(security),  # noqa: B008
+    credentials: Annotated[HTTPBasicCredentials, Depends(security)],
 ) -> User:
     """Activate a user."""
     token = payload.token
