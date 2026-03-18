@@ -13,4 +13,4 @@ class RegistrationRequest(BaseModel):
 class ActivationRequest(BaseModel):
     """Account activation request body."""
 
-    token: str
+    token: str = Field(pattern=r"^\d{4}$")

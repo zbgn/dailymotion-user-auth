@@ -76,6 +76,30 @@ def _mock_token(monkeypatch) -> None:  # noqa: ANN001
             valid_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
             return Token(id=1, code=self.token_code, user_id=1, valid_until=valid_until)
 
+        async def get_by_user_email_and_code(
+            self: "MockTokenRepository",
+            email: str,
+            code: str,
+            conn=None,  # noqa: ANN001
+        ) -> None:
+            _ = email, conn
+            if code != self.token_code:
+                return None
+            valid_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
+            return Token(id=1, code=self.token_code, user_id=1, valid_until=valid_until)
+
+        async def get_valid_by_user_email_and_code(
+            self: "MockTokenRepository",
+            email: str,
+            code: str,
+            conn=None,  # noqa: ANN001
+        ) -> None:
+            _ = email, conn
+            if code != self.token_code:
+                return None
+            valid_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
+            return Token(id=1, code=self.token_code, user_id=1, valid_until=valid_until)
+
         async def invalidate_for_user(self: "MockTokenRepository", user_id: int, conn=None) -> None:  # noqa: ANN001
             _ = user_id, conn
 

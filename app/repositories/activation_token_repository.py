@@ -1,9 +1,6 @@
 """Repository for activation token persistence operations."""
 
-import datetime
-
 import asyncpg
-import pytz
 
 from app.infrastructure.db import get_db_connection
 from app.infrastructure.settings import get_settings
@@ -29,10 +26,11 @@ class ActivationTokenRepository:
             conn = await get_db_connection(self.database_url)
         try:
             token = await conn.fetchrow(
-                "INSERT INTO tokens (code, user_id, valid_until) VALUES ($1, $2, $3) RETURNING *",
+                "INSERT INTO tokens (code, user_id, valid_until) "
+                "VALUES ($1, $2, (NOW() AT TIME ZONE 'UTC') + INTERVAL '1 minute') "
+                "RETURNING *",
                 code,
                 user_id,
-                datetime.datetime.now(tz=pytz.utc).replace(tzinfo=None) + datetime.timedelta(minutes=1),
             )
             return Token(**token)
         finally:
@@ -61,6 +59,55 @@ class ActivationTokenRepository:
             if owns_connection:
                 await conn.close()
 
+    async def get_by_user_email_and_code(
+        self,
+        user_email: str,
+        code: str,
+        conn: asyncpg.Connection | None = None,
+    ) -> Token | None:
+        """Get latest token matching user email and activation code."""
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
+        try:
+            token = await conn.fetchrow(
+                "SELECT * FROM tokens WHERE user_id = (SELECT id FROM users WHERE email = $1) "
+                "AND code = $2 ORDER BY valid_until DESC LIMIT 1",
+                user_email,
+                code,
+            )
+            if not token:
+                return None
+            return Token(**token)
+        finally:
+            if owns_connection:
+                await conn.close()
+
+    async def get_valid_by_user_email_and_code(
+        self,
+        user_email: str,
+        code: str,
+        conn: asyncpg.Connection | None = None,
+    ) -> Token | None:
+        """Get latest non-expired token matching user email and activation code."""
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
+        try:
+            token = await conn.fetchrow(
+                "SELECT * FROM tokens WHERE user_id = (SELECT id FROM users WHERE email = $1) "
+                "AND code = $2 AND valid_until > (NOW() AT TIME ZONE 'UTC') "
+                "ORDER BY valid_until DESC LIMIT 1",
+                user_email,
+                code,
+            )
+            if not token:
+                return None
+            return Token(**token)
+        finally:
+            if owns_connection:
+                await conn.close()
+
     async def invalidate_for_user(self, user_id: int, conn: asyncpg.Connection | None = None) -> None:
         """Invalidate all activation tokens for a user."""
         owns_connection = conn is None
@@ -68,9 +115,8 @@ class ActivationTokenRepository:
             conn = await get_db_connection(self.database_url)
         try:
             await conn.execute(
-                "UPDATE tokens SET valid_until = $2 WHERE user_id = $1",
+                "UPDATE tokens SET valid_until = (NOW() AT TIME ZONE 'UTC') WHERE user_id = $1",
                 user_id,
-                datetime.datetime.now(tz=pytz.utc).replace(tzinfo=None),
             )
         finally:
             if owns_connection:

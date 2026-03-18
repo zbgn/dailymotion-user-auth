@@ -66,10 +66,15 @@ async def activate_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User already active",
         ) from None
-    except (InvalidActivationCodeError, ExpiredActivationCodeError):
+    except InvalidActivationCodeError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid token",
+        ) from None
+    except ExpiredActivationCodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Expired token",
         ) from None
     except Exception as e:
         logger.exception("Error activating user", exc_info=e)

@@ -1,6 +1,6 @@
 """Application service for authentication use cases."""
 
-import random
+import secrets
 
 import asyncpg
 
@@ -43,7 +43,7 @@ class AuthService:
                 except asyncpg.UniqueViolationError as exc:
                     raise UserAlreadyExistsError from exc
 
-                code = "".join([str(random.randint(0, 9)) for _ in range(4)])  # noqa: S311
+                code = f"{secrets.randbelow(10_000):04d}"
                 token = await token_repository.create(code=code, user_id=user.id, conn=conn)
         finally:
             await conn.close()
@@ -66,11 +66,12 @@ class AuthService:
                 if user.is_active:
                     raise UserAlreadyActiveError
 
-                latest_token = await token_repository.get_by_user_email(email, conn=conn)
-                if latest_token is None or latest_token.code != token:
+                token_match = await token_repository.get_by_user_email_and_code(email, token, conn=conn)
+                if token_match is None:
                     raise InvalidActivationCodeError
 
-                if not latest_token.is_valid:
+                valid_token = await token_repository.get_valid_by_user_email_and_code(email, token, conn=conn)
+                if valid_token is None:
                     raise ExpiredActivationCodeError
 
                 updated_user = await user_repository.activate(user.id, conn=conn)
