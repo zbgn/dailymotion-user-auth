@@ -6,6 +6,7 @@ from colorlog import getLogger
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
+from app.api.dependencies import get_auth_service
 from app.api.schemas.auth import ActivationRequest, RegistrationRequest
 from app.domain.exceptions import (
     ExpiredActivationCodeError,
@@ -23,11 +24,13 @@ router = APIRouter()
 logger = getLogger(__name__)
 
 security = HTTPBasic()
-auth_service = AuthService()
 
 
 @router.post("/register/")
-async def register_user(payload: RegistrationRequest) -> User:
+async def register_user(
+    payload: RegistrationRequest,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> User:
     """Register a new user."""
     try:
         return await auth_service.register(payload.email, payload.password)
@@ -48,6 +51,7 @@ async def register_user(payload: RegistrationRequest) -> User:
 async def activate_user(
     payload: ActivationRequest,
     credentials: Annotated[HTTPBasicCredentials, Depends(security)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> User:
     """Activate a user."""
     try:
