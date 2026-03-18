@@ -1,4 +1,5 @@
 """User model."""
+
 import os
 
 import asyncpg

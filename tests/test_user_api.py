@@ -1,6 +1,7 @@
 """Test the user API endpoints."""
 
 import asyncio
+import datetime
 from http import HTTPStatus
 
 import pytest
@@ -17,7 +18,7 @@ client = TestClient(app)
 TOKEN_LENGTH = 4
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_user(request, monkeypatch) -> None:  # noqa: ANN001
     """Mock the user model."""
     defined_email = request.param.get("email")
@@ -45,11 +46,11 @@ def mock_user(request, monkeypatch) -> None:  # noqa: ANN001
             _ = email
             return defined_exist
 
-    monkeypatch.setattr("app.api.user_api.User", MockUser)
+    monkeypatch.setattr("app.api.routers.v1.user_api.User", MockUser)
     return {"email": defined_email, "password": defined_password}
 
 
-@pytest.fixture()
+@pytest.fixture
 def _mock_token(monkeypatch) -> None:  # noqa: ANN001
     """Mock the token model."""
 
@@ -59,17 +60,19 @@ def _mock_token(monkeypatch) -> None:  # noqa: ANN001
         @classmethod
         async def create(cls: "MockToken", code: str, user_id: int) -> None:
             cls.token_code = code
-            return Token(id=1, code=code, user_id=user_id, valid_until="2025-01-01T00:00:00Z")
+            valid_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
+            return Token(id=1, code=code, user_id=user_id, valid_until=valid_until)
 
         @classmethod
         async def get_by_user_email(cls: "MockToken", email: str) -> None:
             _ = email
-            return Token(id=1, code=cls.token_code, user_id=1, valid_until="2025-01-01T00:00:00Z")
+            valid_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
+            return Token(id=1, code=cls.token_code, user_id=1, valid_until=valid_until)
 
-    monkeypatch.setattr("app.api.user_api.Token", MockToken)
+    monkeypatch.setattr("app.api.routers.v1.user_api.Token", MockToken)
 
 
-@pytest.fixture()
+@pytest.fixture
 def _mock_email_service(monkeypatch) -> None:  # noqa: ANN001
     """Mock the email service."""
 
@@ -83,10 +86,10 @@ def _mock_email_service(monkeypatch) -> None:  # noqa: ANN001
         else:
             logger.info("Sending email to %s with subject %s", email, subject)
 
-    monkeypatch.setattr("app.api.user_api.send_email", send_email)
+    monkeypatch.setattr("app.api.routers.v1.user_api.send_email", send_email)
 
 
-@pytest.fixture()
+@pytest.fixture
 def _mock_db(monkeypatch) -> None:  # noqa: ANN001
     """Mock the database connection."""
     connect_future = asyncio.Future()
@@ -118,7 +121,7 @@ def _mock_db(monkeypatch) -> None:  # noqa: ANN001
     monkeypatch.setattr("asyncpg.connect", lambda _dsn: connect_future)
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("mock_user", "status_code", "error_msg"),
     [
@@ -140,7 +143,7 @@ async def test_register_user(mock_user, status_code, error_msg) -> None:  # noqa
         assert response.json()["detail"] == error_msg
 
 
-@pytest.mark.asyncio()
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("mock_user"),
     [

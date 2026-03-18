@@ -1,4 +1,5 @@
 """Email service."""
+
 import enum
 import os
 import smtplib
