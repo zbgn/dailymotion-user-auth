@@ -1,103 +1,219 @@
-# dailymotion-user-auth
+# Dailymotion User Auth Service
 
-This project is a FastAPI backend service with PostgreSQL for persistence and Maildev for local SMTP testing.
+## Purpose
 
-## Features
+This repository implements a focused backend service for the assignment use case:
 
-- User registration and account activation via email code.
-- Email testing with Maildev.
-- Reproducible containerized runtime and tests with Docker/Compose.
+- create a user account with email and password
+- generate and send a 4-digit activation code
+- activate the account using Basic Auth and the activation code
+- enforce a 1-minute validity window for activation codes
+
+The service is intentionally narrow in scope and does not implement broader authentication features (no login session, JWT, refresh token, or RBAC).
+
+## Tech Stack
+
+- Python 3.12
+- FastAPI
+- PostgreSQL (explicit SQL with asyncpg, no ORM)
+- Maildev (SMTP test service)
+- uv (dependency/runtime management)
+- Docker + Docker Compose (reproducible run and test workflow)
 
 ## Architecture
 
+The codebase uses a pragmatic layered structure:
+
+- API layer: request parsing, response models, endpoint wiring, HTTP semantics
+- Service layer: use-case orchestration for register/activate
+- Repository layer: explicit SQL and persistence concerns
+- Infrastructure layer: settings, DB pool/connection lifecycle, SMTP client
+- Domain layer: business exceptions and core models
+
+### Architecture Schema
+
 ```mermaid
 graph TD
-    A[User Interface] -->|HTTP requests| B(FastAPI Backend)
-    B -->|Fetch Data| D[PostgreSQL Database]
-    B -->|Send Email| E[Maildev SMTP Server]
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style B fill:#bbf,stroke:#333,stroke-width:2px
-    style D fill:#dfd,stroke:#333,stroke-width:2px
-    style E fill:#fdfd96,stroke:#333,stroke-width:2px
+        Client[Client] --> API[FastAPI Routers]
+        API --> Service[AuthService]
+        Service --> UserRepo[UserRepository]
+        Service --> TokenRepo[ActivationTokenRepository]
+        Service --> MailSvc[Email Service]
+        UserRepo --> PG[(PostgreSQL)]
+        TokenRepo --> PG
+        MailSvc --> SMTP[EmailClient -> SMTP/Maildev]
+
+        API --> Handlers[Centralized Error Handlers]
+        API --> DI[FastAPI Dependencies]
+        App[FastAPI App Lifespan] --> DBPool[DB Pool Startup/Shutdown]
 ```
 
-## Prerequisites
+## Runtime Configuration
 
-- Docker and Docker Compose
+The backend reads configuration from environment variables:
 
-## Getting Started
+- `DATABASE_URL`
+- `SMTP_SERVER`
+- `SMTP_PORT`
+- `TZ`
 
-### 1. Clone the Repository
+In Docker Compose, these are preconfigured for local evaluation.
 
-Start by cloning the repository to your local machine:
+## Run Instructions (Docker-only)
 
-```bash
-git clone github.com/zbgn/dailymotion-user-auth.git
-cd dailymotion-user-auth
-```
-
-### 2. Build and Run the Docker Containers
-From the root of the project directory, run:
+### 1. Build and start services
 
 ```bash
 docker compose up --build -d
 ```
 
-This command will build the Docker images and start the containers.
+This starts:
 
-### 3. Accessing the Application
-The FastAPI backend is accessible at http://localhost:8000
+- `backend` on `http://localhost:8000`
+- `db` (PostgreSQL)
+- `maildev` on `http://localhost:1080`
 
-Maildev is accessible at http://localhost:1080
-
-### 4. API Documentation
-FastAPI generates interactive API documentation using Swagger UI. Once the backend service is running, you can access the documentation at http://localhost:8000/docs.
-
-### 5. Run Tests (Reproducible, Docker-only)
-Run the test suite inside the backend container image:
+### 2. Verify service health
 
 ```bash
-docker compose run --rm backend uv run pytest
+curl http://localhost:8000/api/v1/health
 ```
 
-Stop all services when done:
+Expected response:
+
+```json
+{"status":"ok"}
+```
+
+### 3. Stop services
 
 ```bash
 docker compose down -v
 ```
 
-## Development
-Install dependencies:
+## Test Instructions
+
+### Reproducible tests in Docker (recommended)
+
+```bash
+docker compose run --rm backend uv run pytest
+```
+
+### Local tests (optional)
 
 ```bash
 uv sync --group dev --group test
-```
-
-Run the API locally:
-
-```bash
-uv run fastapi dev app/main.py --host 0.0.0.0 --port 8000
-```
-
-Run lint checks:
-
-```bash
-uv run ruff check .
-uv run ruff format --check .
-```
-
-### Database Migrations
-To update the database schema, modify the initialization scripts and rebuild the Docker containers.
-
-### Sending Emails
-Emails for account activation are mocked using Maildev during development. In a production environment, configure the application to use a real email service provider.
-
-## Testing
-Run the following command:
-
-```bash
 uv run pytest
 ```
 
-## Deployment
-Instructions for deploying the application to a production environment should include details on setting up a secure database, configuring a real email service, and deploying the Docker containers to a cloud service.
+## API Endpoints
+
+The versioned API is the recommended interface.
+
+### Health
+
+- `GET /api/v1/health`
+
+Response:
+
+```json
+{"status":"ok"}
+```
+
+### Register User
+
+- `POST /api/v1/register/`
+- Body:
+
+```json
+{
+    "email": "user@example.com",
+    "password": "your-password"
+}
+```
+
+Success response (`200`):
+
+```json
+{
+    "id": 1,
+    "email": "user@example.com",
+    "is_active": false
+}
+```
+
+Business error response (`400`):
+
+```json
+{"detail":"Email already registered"}
+```
+
+### Activate User
+
+- `POST /api/v1/activate/`
+- Auth: HTTP Basic (`email` + `password`)
+- Body:
+
+```json
+{
+    "token": "1234"
+}
+```
+
+Success response (`200`):
+
+```json
+{
+    "id": 1,
+    "email": "user@example.com",
+    "is_active": true
+}
+```
+
+Business error responses (`400`):
+
+- `{"detail":"Invalid credentials"}`
+- `{"detail":"User already active"}`
+- `{"detail":"Invalid token"}`
+- `{"detail":"Expired token"}`
+
+### OpenAPI Documentation
+
+- `GET /docs` (Swagger UI)
+
+## Key Design Decisions
+
+### 1. Explicit SQL, no ORM
+
+Repositories use `asyncpg` with explicit SQL statements to satisfy assignment constraints and keep persistence logic transparent.
+
+### 2. Transaction boundaries at service layer
+
+`AuthService` owns transaction boundaries for each use case so all related repository operations share one connection/transaction scope.
+
+### 3. Deterministic token validity checks
+
+Token expiration is enforced in SQL using database UTC time, reducing wall-clock drift issues and making behavior more deterministic.
+
+### 4. Centralized business error mapping
+
+Business exceptions are mapped once in FastAPI exception handlers to provide stable API error semantics and avoid duplicating `HTTPException` logic in routes.
+
+### 5. FastAPI DI and lifespan
+
+- Dependency providers wire settings, repositories, and services.
+- Lifespan startup/shutdown manages infrastructure resources, especially DB pool lifecycle.
+
+## Email Third-Party Handling
+
+Email sending is treated as an external integration:
+
+- service layer calls `send_email`
+- infrastructure `EmailClient` handles SMTP transport
+- local evaluation uses Maildev as the SMTP server
+
+This keeps transport-specific concerns outside business orchestration.
+
+## Why Basic Auth for Activation
+
+Basic Auth is used on activation endpoint because it is an explicit assignment requirement. The service intentionally keeps this mechanism for evaluation scope correctness and does not extend into broader auth flows.
