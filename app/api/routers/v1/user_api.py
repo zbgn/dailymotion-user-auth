@@ -2,13 +2,13 @@
 
 import os
 import random
-from typing import Annotated
 
 import asyncpg
 from colorlog import getLogger
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
+from app.api.schemas.auth import ActivationRequest, RegistrationRequest
 from app.models.token import Token
 from app.models.user import User
 from app.services.email_service import EmailSubject, send_email
@@ -21,8 +21,10 @@ security = HTTPBasic()
 
 
 @router.post("/register/", response_model=User)
-async def register_user(email: str, password: Annotated[str, Query(max_length=72)]) -> User:
+async def register_user(payload: RegistrationRequest) -> User:
     """Register a new user."""
+    email = payload.email
+    password = payload.password
     user_in_db = await User.exists(email)
     if user_in_db:
         raise HTTPException(
@@ -64,8 +66,12 @@ async def get_user(user_id: int) -> User:
 
 
 @router.post("/activate/", response_model=User)
-async def activate_user(token: str, credentials: HTTPBasicCredentials = Depends(security)) -> User:  # noqa: B008
+async def activate_user(
+    payload: ActivationRequest,
+    credentials: HTTPBasicCredentials = Depends(security),  # noqa: B008
+) -> User:
     """Activate a user."""
+    token = payload.token
     try:
         user: User = await User.get_by_email(credentials.username, credentials.password)
     except ValueError as e:

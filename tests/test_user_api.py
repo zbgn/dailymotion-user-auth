@@ -131,11 +131,11 @@ def _mock_db(monkeypatch) -> None:  # noqa: ANN001
     indirect=["mock_user"],
 )
 @pytest.mark.usefixtures("_mock_db", "_mock_token", "_mock_email_service")
-async def test_register_user(mock_user, status_code, error_msg) -> None:  # noqa: ANN001
+        ({"email": "test@example.com", "password": "password123", "exist": True}, HTTPStatus.BAD_REQUEST, "Email already registered"),
     """Test the user registration endpoint."""
     email = mock_user.get("email")
     password = mock_user.get("password")
-    response = client.post("/register/", params={"email": email, "password": password})
+    response = client.post("/register/", json={"email": email, "password": password})
     assert response.status_code == status_code
     if status_code == HTTPStatus.OK:
         assert response.json()["email"] == email
@@ -156,14 +156,14 @@ async def test_activate_user(mock_user, caplog) -> None:  # noqa: ANN001
     """Test the user activation endpoint."""
     email = mock_user.get("email")
     password = mock_user.get("password")
-    client.post("/register/", params={"email": email, "password": password})
+    client.post("/register/", json={"email": email, "password": password})
     info_log_msg = [
         log.getMessage() for log in caplog.records if log.levelname == "INFO" and log.name == "mocked_email_service"
     ]
     getLogger("test_activate_user").setLevel("INFO")
     getLogger("test_activate_user").info(info_log_msg)
     token = info_log_msg[0].split()[-1]
-    response = client.post("/activate/", params={"token": token}, auth=(email, password))
+    response = client.post("/activate/", json={"token": token}, auth=(email, password))
     assert response.status_code == HTTPStatus.OK
     assert response.json()["email"] == email
     assert response.json()["is_active"] is True
