@@ -1,12 +1,13 @@
 """Email service."""
 
 import enum
-import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from colorlog import getLogger
+
+from app.infrastructure.settings import get_settings
 
 
 class EmailSubject(enum.Enum):
@@ -35,7 +36,8 @@ async def send_email(email: str, subject: EmailSubject, *_: dict, **kwargs: dict
         **kwargs: Additional keyword arguments.
 
     """
-    server = smtplib.SMTP(os.environ.get("SMTP_SERVER"), os.environ.get("SMTP_PORT"))
+    settings = get_settings()
+    server = smtplib.SMTP(settings.smtp_server, settings.smtp_port)
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject.value

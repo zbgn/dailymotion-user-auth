@@ -1,9 +1,7 @@
 """Repository for user persistence operations."""
 
-import os
-
-import asyncpg
-
+from app.infrastructure.db import get_db_connection
+from app.infrastructure.settings import get_settings
 from app.models.user import User
 
 
@@ -12,11 +10,11 @@ class UserRepository:
 
     def __init__(self, database_url: str | None = None) -> None:
         """Initialize repository with an optional database URL override."""
-        self.database_url = database_url or os.environ.get("DATABASE_URL")
+        self.database_url = database_url or get_settings().database_url
 
     async def create(self, email: str, password: str) -> User:
         """Create a user and return the persisted projection."""
-        conn = await asyncpg.connect(self.database_url)
+        conn = await get_db_connection(self.database_url)
         try:
             hashed_password = await conn.fetchval("SELECT crypt($1, gen_salt('bf'))", password)
             user = await conn.fetchrow(
@@ -30,7 +28,7 @@ class UserRepository:
 
     async def exists(self, email: str) -> bool:
         """Check if a user exists by email."""
-        conn = await asyncpg.connect(self.database_url)
+        conn = await get_db_connection(self.database_url)
         try:
             user = await conn.fetchval("SELECT id FROM users WHERE email = $1", email)
             return bool(user)
@@ -43,7 +41,7 @@ class UserRepository:
             msg = "User not found"
             raise ValueError(msg)
 
-        conn = await asyncpg.connect(self.database_url)
+        conn = await get_db_connection(self.database_url)
         try:
             user = await conn.fetchrow(
                 "SELECT id, email, is_active FROM users WHERE email = $1 and password = crypt($2, password)",
@@ -59,7 +57,7 @@ class UserRepository:
 
     async def activate(self, user_id: int) -> User:
         """Activate a user and return the updated projection."""
-        conn = await asyncpg.connect(self.database_url)
+        conn = await get_db_connection(self.database_url)
         try:
             await conn.execute("UPDATE users SET is_active = TRUE WHERE id = $1", user_id)
             user = await conn.fetchrow("SELECT id, email, is_active FROM users WHERE id = $1", user_id)

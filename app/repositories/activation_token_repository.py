@@ -1,11 +1,11 @@
 """Repository for activation token persistence operations."""
 
 import datetime
-import os
 
-import asyncpg
 import pytz
 
+from app.infrastructure.db import get_db_connection
+from app.infrastructure.settings import get_settings
 from app.models.token import Token
 
 
@@ -14,11 +14,11 @@ class ActivationTokenRepository:
 
     def __init__(self, database_url: str | None = None) -> None:
         """Initialize repository with an optional database URL override."""
-        self.database_url = database_url or os.environ.get("DATABASE_URL")
+        self.database_url = database_url or get_settings().database_url
 
     async def create(self, code: str, user_id: int) -> Token:
         """Create a token for a user."""
-        conn = await asyncpg.connect(self.database_url)
+        conn = await get_db_connection(self.database_url)
         try:
             token = await conn.fetchrow(
                 "INSERT INTO tokens (code, user_id, valid_until) VALUES ($1, $2, $3) RETURNING *",
@@ -32,7 +32,7 @@ class ActivationTokenRepository:
 
     async def get_by_user_email(self, user_email: str) -> Token | None:
         """Get latest token by user email."""
-        conn = await asyncpg.connect(self.database_url)
+        conn = await get_db_connection(self.database_url)
         try:
             token = await conn.fetchrow(
                 "SELECT * FROM tokens WHERE user_id = (SELECT id FROM users WHERE email = $1) "
