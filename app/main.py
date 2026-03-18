@@ -37,6 +37,5 @@ app = FastAPI(
 
 register_error_handlers(app)
 
-app.include_router(user_router)
 app.include_router(user_router, prefix="/api/v1")
 app.include_router(health_router, prefix="/api/v1")

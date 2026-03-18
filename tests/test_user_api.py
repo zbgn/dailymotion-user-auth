@@ -58,7 +58,7 @@ def test_register_user(register_error: type[Exception] | None, status_code: HTTP
 
     app.dependency_overrides[get_auth_service] = _override_auth_service
 
-    response = client.post("/register/", json={"email": email, "password": password})
+    response = client.post("/api/v1/register/", json={"email": email, "password": password})
 
     assert response.status_code == status_code
     if status_code == HTTPStatus.OK:
@@ -77,7 +77,7 @@ def test_activate_user() -> None:
 
     app.dependency_overrides[get_auth_service] = _override_auth_service
 
-    response = client.post("/activate/", json={"token": "1234"}, auth=(email, password))
+    response = client.post("/api/v1/activate/", json={"token": "1234"}, auth=(email, password))
 
     assert response.status_code == HTTPStatus.OK
     assert response.json()["email"] == email
