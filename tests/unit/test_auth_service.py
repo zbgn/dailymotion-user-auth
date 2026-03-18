@@ -5,6 +5,7 @@ import datetime
 import pytest
 
 from app.domain.exceptions import (
+    EmailDeliveryFailedError,
     ExpiredActivationCodeError,
     InvalidActivationCodeError,
     UserAlreadyActiveError,
@@ -58,6 +59,7 @@ class _FakeUserRepository:
         self.created_user = User(id=1, email=TEST_EMAIL, is_active=False)
         self.activated_user = User(id=1, email=TEST_EMAIL, is_active=True)
         self.activate_called_with: int | None = None
+        self.deleted_user_id: int | None = None
         self.exists_called = 0
         self.create_called = 0
 
@@ -84,6 +86,11 @@ class _FakeUserRepository:
         self.activate_called_with = user_id
         return self.activated_user
 
+    async def delete_by_id(self, user_id: int, conn=None) -> None:  # noqa: ANN001
+        """Record user deletion call for compensating cleanup."""
+        _ = conn
+        self.deleted_user_id = user_id
+
 
 class _FakeTokenRepository:
     """Simple fake token repository for service unit tests."""
@@ -104,6 +111,7 @@ class _FakeTokenRepository:
             valid_until=FIXED_VALID_UNTIL,
         )
         self.invalidated_user_id: int | None = None
+        self.deleted_user_id: int | None = None
 
     async def create(self, code: str, user_id: int, conn=None) -> Token:  # noqa: ANN001
         """Store and return created token."""
@@ -130,6 +138,11 @@ class _FakeTokenRepository:
         """Record token invalidation call."""
         _ = conn
         self.invalidated_user_id = user_id
+
+    async def delete_for_user(self, user_id: int, conn=None) -> None:  # noqa: ANN001
+        """Record token deletion call for compensating cleanup."""
+        _ = conn
+        self.deleted_user_id = user_id
 
 
 @pytest.fixture
@@ -212,6 +225,36 @@ async def test_register_duplicate_email(
 
 
 @pytest.mark.asyncio
+async def test_register_email_failure_triggers_compensating_cleanup(
+    fake_connection: _FakeConnection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Register raises explicit business error and compensates when email fails."""
+    _ = fake_connection
+    monkeypatch.setattr("app.services.auth_service.secrets.randbelow", lambda _limit: 42)
+    error_msg = "smtp down"
+
+    async def _send_email_failure(*_args, **_kwargs) -> None:  # noqa: ANN002, ANN003
+        raise RuntimeError(error_msg)
+
+    monkeypatch.setattr("app.services.auth_service.send_email", _send_email_failure)
+
+    user_repo = _FakeUserRepository()
+    token_repo = _FakeTokenRepository()
+    service = AuthService(
+        database_url="postgresql://test",
+        user_repository=user_repo,
+        token_repository=token_repo,
+    )
+
+    with pytest.raises(EmailDeliveryFailedError):
+        await service.register(TEST_EMAIL, TEST_PASSWORD)
+
+    assert token_repo.deleted_user_id == 1
+    assert user_repo.deleted_user_id == 1
+
+
+@pytest.mark.asyncio
 async def test_activate_success(
     fake_connection: _FakeConnection,
     email_spy: list[dict[str, object | None]],
@@ -234,6 +277,35 @@ async def test_activate_success(
     assert len(email_spy) == 1
     assert email_spy[0]["email"] == TEST_EMAIL
     assert email_spy[0]["token"] is None
+
+
+@pytest.mark.asyncio
+async def test_activate_email_failure_is_surfaced(
+    fake_connection: _FakeConnection,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Activate raises explicit delivery error if confirmation email fails."""
+    _ = fake_connection
+    error_msg = "smtp down"
+
+    async def _send_email_failure(*_args, **_kwargs) -> None:  # noqa: ANN002, ANN003
+        raise RuntimeError(error_msg)
+
+    monkeypatch.setattr("app.services.auth_service.send_email", _send_email_failure)
+
+    user_repo = _FakeUserRepository()
+    token_repo = _FakeTokenRepository()
+    service = AuthService(
+        database_url="postgresql://test",
+        user_repository=user_repo,
+        token_repository=token_repo,
+    )
+
+    with pytest.raises(EmailDeliveryFailedError):
+        await service.activate(TEST_EMAIL, TEST_PASSWORD, "1234")
+
+    assert user_repo.activate_called_with == 1
+    assert token_repo.invalidated_user_id == 1
 
 
 @pytest.mark.asyncio

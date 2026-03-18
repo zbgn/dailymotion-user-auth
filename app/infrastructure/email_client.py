@@ -1,6 +1,7 @@
 """Infrastructure email client for third-party SMTP transport."""
 
 import smtplib
+from contextlib import suppress
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -36,8 +37,9 @@ class EmailClient:
 
     async def _send(self, *, email: str, subject: str, text: str) -> None:
         """Send email through SMTP transport."""
-        server = smtplib.SMTP(self._settings.smtp_server, self._settings.smtp_port)
+        server = None
         try:
+            server = smtplib.SMTP(self._settings.smtp_server, self._settings.smtp_port)
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
             msg["From"] = "dailymotion@auth.dev"
@@ -49,12 +51,10 @@ class EmailClient:
             msg.attach(part2)
 
             server.sendmail("dailymotion@auth.dev", email, msg.as_string())
-        except (
-            smtplib.SMTPHeloError,
-            smtplib.SMTPRecipientsRefused,
-            smtplib.SMTPSenderRefused,
-            smtplib.SMTPNotSupportedError,
-        ) as exc:
+        except (smtplib.SMTPException, OSError) as exc:
             logger.exception("Error sending email", exc_info=exc)
+            raise
         finally:
-            server.quit()
+            if server is not None:
+                with suppress(smtplib.SMTPException, OSError):
+                    server.quit()

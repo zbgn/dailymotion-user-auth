@@ -88,3 +88,14 @@ class UserRepository:
         finally:
             if owns_connection:
                 await conn.close()
+
+    async def delete_by_id(self, user_id: int, conn: asyncpg.Connection | None = None) -> None:
+        """Delete a user by id."""
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
+        try:
+            await conn.execute("DELETE FROM users WHERE id = $1", user_id)
+        finally:
+            if owns_connection:
+                await conn.close()

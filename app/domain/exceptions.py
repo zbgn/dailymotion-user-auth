@@ -27,3 +27,7 @@ class InvalidActivationCodeError(DomainError):
 
 class ExpiredActivationCodeError(DomainError):
     """Raised when the activation code is expired."""
+
+
+class EmailDeliveryFailedError(DomainError):
+    """Raised when activation email delivery fails."""

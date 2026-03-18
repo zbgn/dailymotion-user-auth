@@ -121,3 +121,14 @@ class ActivationTokenRepository:
         finally:
             if owns_connection:
                 await conn.close()
+
+    async def delete_for_user(self, user_id: int, conn: asyncpg.Connection | None = None) -> None:
+        """Delete all activation tokens for a user."""
+        owns_connection = conn is None
+        if conn is None:
+            conn = await get_db_connection(self.database_url)
+        try:
+            await conn.execute("DELETE FROM tokens WHERE user_id = $1", user_id)
+        finally:
+            if owns_connection:
+                await conn.close()

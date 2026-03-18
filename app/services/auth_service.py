@@ -5,6 +5,7 @@ import secrets
 import asyncpg
 
 from app.domain.exceptions import (
+    EmailDeliveryFailedError,
     ExpiredActivationCodeError,
     InvalidActivationCodeError,
     InvalidCredentialsError,
@@ -55,7 +56,19 @@ class AuthService:
         finally:
             await conn.close()
 
-        await send_email(email=user.email, subject=EmailSubject.WELCOME, token=token.code)
+        try:
+            await send_email(email=user.email, subject=EmailSubject.WELCOME, token=token.code)
+        except Exception as exc:
+            cleanup_conn = await get_db_connection(self.database_url)
+            try:
+                async with cleanup_conn.transaction():
+                    await self.token_repository.delete_for_user(user.id, conn=cleanup_conn)
+                    await self.user_repository.delete_by_id(user.id, conn=cleanup_conn)
+            finally:
+                await cleanup_conn.close()
+
+            raise EmailDeliveryFailedError from exc
+
         return user
 
     async def activate(self, email: str, password: str, token: str) -> User:
@@ -86,5 +99,9 @@ class AuthService:
         finally:
             await conn.close()
 
-        await send_email(email, EmailSubject.ACTIVATED)
+        try:
+            await send_email(email, EmailSubject.ACTIVATED)
+        except Exception as exc:
+            raise EmailDeliveryFailedError from exc
+
         return updated_user

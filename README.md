@@ -150,6 +150,12 @@ Business error response (`400`):
 {"detail":"Email already registered"}
 ```
 
+Third-party delivery error (`503`):
+
+```json
+{"detail":"Email delivery failed"}
+```
+
 ### Activate User
 
 - `POST /api/v1/activate/`
@@ -213,6 +219,18 @@ Email sending is treated as an external integration:
 - service layer calls `send_email`
 - infrastructure `EmailClient` handles SMTP transport
 - local evaluation uses Maildev as the SMTP server
+
+Registration email failure policy is explicit and fail-closed:
+
+- if activation email delivery fails after user/token creation, the service performs a compensating cleanup (delete token and user)
+- the API returns `503 Service Unavailable` with `{"detail":"Email delivery failed"}`
+- this avoids reporting a successful registration when no activation notification was delivered
+
+Activation confirmation email failure policy is explicit and fail-visible:
+
+- user activation is already committed in database transaction scope
+- if confirmation email delivery fails, the API still returns `503 Service Unavailable` with `{"detail":"Email delivery failed"}`
+- this keeps state changes explicit while clearly surfacing third-party notification failure
 
 This keeps transport-specific concerns outside business orchestration.
 

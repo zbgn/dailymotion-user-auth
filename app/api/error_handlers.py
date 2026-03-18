@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from app.domain.exceptions import (
+    EmailDeliveryFailedError,
     ExpiredActivationCodeError,
     InvalidActivationCodeError,
     InvalidCredentialsError,
@@ -44,3 +45,7 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ExpiredActivationCodeError)
     async def handle_expired_activation_code(_: Request, __: ExpiredActivationCodeError) -> JSONResponse:
         return _error_response(status.HTTP_400_BAD_REQUEST, "Expired token")
+
+    @app.exception_handler(EmailDeliveryFailedError)
+    async def handle_email_delivery_failed(_: Request, __: EmailDeliveryFailedError) -> JSONResponse:
+        return _error_response(status.HTTP_503_SERVICE_UNAVAILABLE, "Email delivery failed")
