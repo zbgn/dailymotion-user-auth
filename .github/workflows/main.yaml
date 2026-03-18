@@ -6,24 +6,31 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: chartboost/ruff-action@v1
-        name: Ruff check backend
+      - uses: actions/checkout@v6.0.2
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6.2.0
         with:
-          src: '.'
-      - uses: chartboost/ruff-action@v1
-        name: Ruff format backend
-        with:
-          src: '.'
-          args: 'format'
-  
+          python-version: '3.12'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7.6.0
+      - name: Install lint dependencies
+        run: uv sync --group dev
+      - name: Ruff check backend
+        run: uv run ruff check .
+      - name: Ruff format backend
+        run: uv run ruff format --check .
+
   tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.2
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: '3.12'
-      - name: Install backend tests dependencies and run tests
-        run: pip install -r requirements/test.txt && pytest
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7.6.0
+      - name: Install test dependencies
+        run: uv sync --group test
+      - name: Run tests
+        run: uv run pytest

@@ -1,22 +1,21 @@
 # Use the official Python base image
 FROM python:3.12-slim
-ARG REQUIREMENTS=test
 
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy the requirements file to the working directory
-COPY requirements/${REQUIREMENTS}.txt ./requirements.txt
-
-# Install the dependencies
+# Install uv
 RUN pip install --upgrade pip
-RUN pip install -r ./requirements.txt
+RUN pip install uv
 
 # Copy the rest of the application code to the working directory
 COPY . .
+
+# Install dependencies from lock file
+RUN uv sync --frozen --group test
 
 # Expose the port on which the FastAPI app will run
 EXPOSE 8000
 
 # Start the FastAPI app
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "fastapi", "run", "app/main.py", "--host", "0.0.0.0", "--port", "8000"]
