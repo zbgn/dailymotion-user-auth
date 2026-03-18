@@ -3,12 +3,12 @@ version: '3.8'
 services:
   backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
       args:
         - REQUIREMENTS=test # set to main for production
     volumes:
-      - ./backend:/app
+      - .:/app
     command: uvicorn app.main:app --host 0.0.0.0 --reload
     ports:
       - "8000:8000"
@@ -18,18 +18,6 @@ services:
       DATABASE_URL: postgresql://user:password@db/dbname
       SMTP_SERVER: maildev
       SMTP_PORT: 1025
-      TZ: Europe/Paris
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    volumes:
-      - ./frontend:/app
-    ports:
-      - "8080:8080"
-    environment:
-      VUE_APP_BACKEND_URL: http://localhost:8000
       TZ: Europe/Paris
 
   db:
