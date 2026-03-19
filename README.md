@@ -161,12 +161,6 @@ Business error response (`400`):
 {"detail":"Email already registered"}
 ```
 
-Third-party delivery error (`503`):
-
-```json
-{"detail":"Email delivery failed"}
-```
-
 ### Activate User
 
 - `POST /api/v1/activate/`
@@ -236,9 +230,9 @@ Email sending is treated as an external integration:
 
 Registration failure strategy (explicit and simple):
 
-- if activation email delivery fails after user/token creation, the API returns `503 Service Unavailable` with `{"detail":"Email delivery failed"}`
-- the service does not run compensating cleanup transactions in this path
-- this keeps failure handling deterministic and operationally simple
+- user and activation token are committed first inside transaction scope
+- welcome email delivery is a best-effort side effect after commit
+- if delivery fails, the service logs the failure and still returns success for the committed registration state
 
 Activation success semantics (best-effort notification):
 

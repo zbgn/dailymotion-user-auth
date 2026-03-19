@@ -7,7 +7,6 @@ from typing import Protocol
 import asyncpg
 
 from app.domain.exceptions import (
-    EmailDeliveryFailedError,
     ExpiredActivationCodeError,
     InvalidActivationCodeError,
     InvalidCredentialsError,
@@ -118,7 +117,7 @@ class AuthService:
         try:
             await send_email(email=user.email, subject=EmailSubject.WELCOME, token=token.code)
         except Exception as exc:
-            raise EmailDeliveryFailedError from exc
+            logger.exception("Registration email delivery failed for %s", email, exc_info=exc)
 
         return user
 

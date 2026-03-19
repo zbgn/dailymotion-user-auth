@@ -5,7 +5,6 @@ import datetime
 import pytest
 
 from app.domain.exceptions import (
-    EmailDeliveryFailedError,
     ExpiredActivationCodeError,
     InvalidActivationCodeError,
     UserAlreadyActiveError,
@@ -231,11 +230,11 @@ async def test_register_duplicate_email(
 
 
 @pytest.mark.asyncio
-async def test_register_email_failure_does_not_attempt_compensating_cleanup(
+async def test_register_email_failure_is_logged_and_not_surfaced(
     fake_connection: _FakeConnection,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Register raises explicit business error without compensating cleanup."""
+    """Register still succeeds when welcome email fails after persistence."""
     _ = fake_connection
     monkeypatch.setattr("app.services.auth_service.secrets.randbelow", lambda _limit: 42)
     error_msg = "smtp down"
@@ -253,9 +252,9 @@ async def test_register_email_failure_does_not_attempt_compensating_cleanup(
         token_repository=token_repo,
     )
 
-    with pytest.raises(EmailDeliveryFailedError):
-        await service.register(TEST_EMAIL, TEST_PASSWORD)
+    result = await service.register(TEST_EMAIL, TEST_PASSWORD)
 
+    assert result.email == TEST_EMAIL
     assert token_repo.deleted_user_id is None
     assert user_repo.deleted_user_id is None
 
