@@ -19,6 +19,8 @@ jobs:
         run: uv run ruff check .
       - name: Ruff format backend
         run: uv run ruff format --check .
+      - name: Ty check
+        run: uv run ty check .
 
   unit-tests:
     runs-on: ubuntu-latest

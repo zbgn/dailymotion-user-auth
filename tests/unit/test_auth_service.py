@@ -11,6 +11,7 @@ from app.domain.exceptions import (
     UserAlreadyActiveError,
     UserAlreadyExistsError,
 )
+from app.infrastructure.db import ManagedConnection
 from app.models.token import Token
 from app.models.user import User
 from app.services.auth_service import AuthService
@@ -113,33 +114,38 @@ class _FakeTokenRepository:
         self.invalidated_user_id: int | None = None
         self.deleted_user_id: int | None = None
 
-    async def create(self, code: str, user_id: int, conn=None) -> Token:  # noqa: ANN001
+    async def create(self, code: str, user_id: int, conn: ManagedConnection | None = None) -> Token:
         """Store and return created token."""
         _ = conn
         self.created_token = Token(id=1, code=code, user_id=user_id, valid_until=FIXED_VALID_UNTIL)
         return self.created_token
 
-    async def get_by_user_email_and_code(self, email: str, code: str, conn=None) -> Token | None:  # noqa: ANN001
+    async def get_by_user_email_and_code(
+        self,
+        user_email: str,
+        code: str,
+        conn: ManagedConnection | None = None,
+    ) -> Token | None:
         """Return configured match token for code lookup."""
-        _ = email, code, conn
+        _ = user_email, code, conn
         return self.match_token
 
     async def get_valid_by_user_email_and_code(
         self,
-        email: str,
+        user_email: str,
         code: str,
-        conn=None,  # noqa: ANN001
+        conn: ManagedConnection | None = None,
     ) -> Token | None:
         """Return configured valid token for expiration lookup."""
-        _ = email, code, conn
+        _ = user_email, code, conn
         return self.valid_token
 
-    async def invalidate_for_user(self, user_id: int, conn=None) -> None:  # noqa: ANN001
+    async def invalidate_for_user(self, user_id: int, conn: ManagedConnection | None = None) -> None:
         """Record token invalidation call."""
         _ = conn
         self.invalidated_user_id = user_id
 
-    async def delete_for_user(self, user_id: int, conn=None) -> None:  # noqa: ANN001
+    async def delete_for_user(self, user_id: int, conn: ManagedConnection | None = None) -> None:
         """Record token deletion call for compensating cleanup."""
         _ = conn
         self.deleted_user_id = user_id

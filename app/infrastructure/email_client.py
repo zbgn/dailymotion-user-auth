@@ -37,6 +37,10 @@ class EmailClient:
 
     async def _send(self, *, email: str, subject: str, text: str) -> None:
         """Send email through SMTP transport."""
+        if self._settings.smtp_server is None or self._settings.smtp_port is None:
+            msg = "SMTP settings are not configured"
+            raise ValueError(msg)
+
         server = None
         try:
             server = smtplib.SMTP(self._settings.smtp_server, self._settings.smtp_port)

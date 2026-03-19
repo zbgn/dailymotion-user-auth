@@ -1,6 +1,7 @@
 """Integration tests for authentication API endpoints using real DB wiring."""
 
 import re
+from collections.abc import Iterator
 from http import HTTPStatus
 
 import psycopg
@@ -19,7 +20,7 @@ def database_url() -> str:
     """Return configured database URL or skip when integration DB is unavailable."""
     settings = get_settings()
     if not settings.database_url:
-        pytest.skip("DATABASE_URL is not configured for integration tests")
+        pytest.skip(reason="DATABASE_URL is not configured for integration tests")
     return settings.database_url
 
 
@@ -30,7 +31,7 @@ def _reset_db(database_url: str) -> None:
         with psycopg.connect(database_url, autocommit=True) as conn, conn.cursor() as cursor:
             cursor.execute("TRUNCATE TABLE tokens, users RESTART IDENTITY")
     except psycopg.OperationalError:
-        pytest.skip("PostgreSQL is not reachable for integration tests")
+        pytest.skip(reason="PostgreSQL is not reachable for integration tests")
 
 
 @pytest.fixture
@@ -46,7 +47,7 @@ def sent_messages(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
 
 
 @pytest.fixture
-def api_client(database_url: str) -> TestClient:
+def api_client(database_url: str) -> Iterator[TestClient]:
     """Return API test client with app lifespan and real dependency wiring."""
     _ = database_url
     with TestClient(app) as client:

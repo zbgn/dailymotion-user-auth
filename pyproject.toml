@@ -26,14 +26,12 @@ test = [
 ]
 dev = [
   "ruff==0.15.6",
+  "ty>=0.0.1",
 ]
 
 [project.urls]
 Homepage = "https://github.com/zbgn/dailymotion-user-auth"
 Issues = "https://github.com/zbgn/dailymotion-user-auth/issues"
-
-[project.scripts]
-api = "app.api:main"
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.

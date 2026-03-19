@@ -27,6 +27,9 @@ class _ManagedConnection:
         await self._connection.close()
 
 
+ManagedConnection = asyncpg.Connection | _ManagedConnection
+
+
 async def create_db_pool() -> asyncpg.Pool:
     """Create and cache a database connection pool for future DI usage."""
     if _db_state["pool"] is None:
@@ -43,7 +46,7 @@ async def close_db_pool() -> None:
         _db_state["pool"] = None
 
 
-async def get_db_connection(database_url: str | None = None) -> asyncpg.Connection:
+async def get_db_connection(database_url: str | None = None) -> ManagedConnection:
     """Return a managed connection, preferring the initialized pool when available."""
     settings = get_settings()
     pool = _db_state["pool"]
