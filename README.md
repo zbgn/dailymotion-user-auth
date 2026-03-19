@@ -101,6 +101,17 @@ docker compose down -v
 docker compose run --rm backend uv run pytest
 ```
 
+### CI-mode integration tests in Docker
+
+Use this command to validate the same behavior expected in CI (real PostgreSQL required, no conditional skip fallback):
+
+```bash
+docker compose up -d db maildev
+docker compose run --rm -e CI=true backend uv run pytest -q tests/integration
+```
+
+In `CI=true` mode, integration fixtures fail fast when `DATABASE_URL` is missing or PostgreSQL is unreachable.
+
 ### Local tests (optional)
 
 ```bash

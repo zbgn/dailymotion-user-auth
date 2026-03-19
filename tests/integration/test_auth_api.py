@@ -1,5 +1,6 @@
 """Integration tests for authentication API endpoints using real DB wiring."""
 
+import os
 import re
 from collections.abc import Iterator
 from http import HTTPStatus
@@ -16,11 +17,18 @@ TEST_PASSWORD = "password123"  # noqa: S105
 SMTP_DOWN_ERROR = "smtp down"
 
 
+def _is_ci() -> bool:
+    """Return whether tests are running in CI environment."""
+    return os.getenv("CI", "").lower() == "true"
+
+
 @pytest.fixture
 def database_url() -> str:
     """Return configured database URL or skip when integration DB is unavailable."""
     settings = get_settings()
     if not settings.database_url:
+        if _is_ci():
+            pytest.fail("DATABASE_URL must be configured in CI for integration tests")
         pytest.skip(reason="DATABASE_URL is not configured for integration tests")
     return settings.database_url
 
@@ -32,6 +40,8 @@ def _reset_db(database_url: str) -> None:
         with psycopg.connect(database_url, autocommit=True) as conn, conn.cursor() as cursor:
             cursor.execute("TRUNCATE TABLE tokens, users RESTART IDENTITY")
     except psycopg.OperationalError:
+        if _is_ci():
+            pytest.fail("PostgreSQL must be reachable in CI for integration tests")
         pytest.skip(reason="PostgreSQL is not reachable for integration tests")
 
 
