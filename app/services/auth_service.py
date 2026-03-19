@@ -20,9 +20,6 @@ from app.repositories.activation_token_repository import ActivationTokenReposito
 from app.repositories.user_repository import UserRepository
 from app.services.email_service import EmailSubject, send_email
 
-user_repository = UserRepository()
-token_repository = ActivationTokenRepository()
-
 
 class AuthService:
     """Pragmatic orchestration for register/activate use cases."""
