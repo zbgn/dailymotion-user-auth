@@ -208,7 +208,10 @@ Repositories use `asyncpg` with explicit SQL statements to satisfy assignment co
 
 ### 2. Transaction boundaries at service layer
 
-`AuthService` owns transaction boundaries for each use case so all related repository operations share one connection/transaction scope.
+`AuthService` owns transaction boundaries for each use case so related repository operations share one connection/transaction scope.
+
+- `register`: user + activation token persistence happens inside one transaction; email delivery happens after commit.
+- `activate`: credential/token checks, user activation, and token invalidation happen inside one transaction; confirmation email happens after commit.
 
 ### 3. Deterministic token validity checks
 
@@ -223,7 +226,7 @@ Business exceptions are mapped once in FastAPI exception handlers to provide sta
 - Dependency providers wire settings, repositories, and services.
 - Lifespan startup/shutdown manages infrastructure resources, especially DB pool lifecycle.
 
-## Email Third-Party Handling
+### 6. External email side effects
 
 Email sending is treated as an external integration:
 
@@ -231,20 +234,24 @@ Email sending is treated as an external integration:
 - infrastructure `EmailClient` handles SMTP transport
 - local evaluation uses Maildev as the SMTP server
 
-Registration email failure policy is explicit and fail-closed:
+Registration failure strategy (explicit and simple):
 
 - if activation email delivery fails after user/token creation, the API returns `503 Service Unavailable` with `{"detail":"Email delivery failed"}`
 - the service does not run compensating cleanup transactions in this path
 - this keeps failure handling deterministic and operationally simple
 
-Activation confirmation email failure policy is explicit and best-effort:
+Activation success semantics (best-effort notification):
 
 - user activation is already committed in database transaction scope
 - if confirmation email delivery fails, the service logs the failure and does not propagate it as an API error
 - the activation endpoint still returns success for the committed state change, keeping response contract consistent with persisted state
 
-This keeps transport-specific concerns outside business orchestration.
+### 7. Testing strategy: unit + real integration
 
-## Why Basic Auth for Activation
+- unit tests validate service-layer business behavior and failure semantics in isolation
+- integration tests run against the real FastAPI app wiring with PostgreSQL
+- CI integration tests run with a real PostgreSQL service and fail fast in `CI=true` mode when DB prerequisites are not satisfied
+
+### 8. Basic Auth for activation
 
 Basic Auth is used on activation endpoint because it is an explicit assignment requirement. The service intentionally keeps this mechanism for evaluation scope correctness and does not extend into broader auth flows.
