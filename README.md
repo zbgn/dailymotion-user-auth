@@ -249,3 +249,16 @@ Activation success semantics (best-effort notification):
 ### 8. Basic Auth for activation
 
 Basic Auth is used on activation endpoint because it is an explicit assignment requirement. The service intentionally keeps this mechanism for evaluation scope correctness and does not extend into broader auth flows.
+
+## Known Limitations and Future Improvements
+
+- Add rate limiting on activation attempts for 4-digit codes.
+- Add lockout/backoff after repeated invalid activation code submissions.
+- Add activation code resend endpoint with cooldown and max resend attempts.
+- Move email delivery to async background processing (queue/worker) to avoid blocking API requests.
+- Add retry policy with exponential backoff for third-party email delivery failures.
+- Add dead-letter handling and alerting for undelivered emails.
+- Improve observability with structured logs, delivery metrics, and activation failure dashboards.
+- Add idempotency strategy for registration requests to avoid duplicate side effects.
+- Add explicit API contract notes for post-commit email behavior (state committed even if notification fails).
+- Harden token storage policy (for example, hashing activation codes at rest) if security requirements expand.
