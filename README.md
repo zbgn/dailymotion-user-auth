@@ -222,9 +222,9 @@ Email sending is treated as an external integration:
 
 Registration email failure policy is explicit and fail-closed:
 
-- if activation email delivery fails after user/token creation, the service performs a compensating cleanup (delete token and user)
-- the API returns `503 Service Unavailable` with `{"detail":"Email delivery failed"}`
-- this avoids reporting a successful registration when no activation notification was delivered
+- if activation email delivery fails after user/token creation, the API returns `503 Service Unavailable` with `{"detail":"Email delivery failed"}`
+- the service does not run compensating cleanup transactions in this path
+- this keeps failure handling deterministic and operationally simple
 
 Activation confirmation email failure policy is explicit and best-effort:
 

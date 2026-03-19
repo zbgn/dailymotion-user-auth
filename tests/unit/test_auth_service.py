@@ -231,11 +231,11 @@ async def test_register_duplicate_email(
 
 
 @pytest.mark.asyncio
-async def test_register_email_failure_triggers_compensating_cleanup(
+async def test_register_email_failure_does_not_attempt_compensating_cleanup(
     fake_connection: _FakeConnection,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Register raises explicit business error and compensates when email fails."""
+    """Register raises explicit business error without compensating cleanup."""
     _ = fake_connection
     monkeypatch.setattr("app.services.auth_service.secrets.randbelow", lambda _limit: 42)
     error_msg = "smtp down"
@@ -256,8 +256,8 @@ async def test_register_email_failure_triggers_compensating_cleanup(
     with pytest.raises(EmailDeliveryFailedError):
         await service.register(TEST_EMAIL, TEST_PASSWORD)
 
-    assert token_repo.deleted_user_id == 1
-    assert user_repo.deleted_user_id == 1
+    assert token_repo.deleted_user_id is None
+    assert user_repo.deleted_user_id is None
 
 
 @pytest.mark.asyncio
