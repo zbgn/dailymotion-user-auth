@@ -36,7 +36,7 @@ services:
       - "5432:5432"
 
   maildev:
-    image: maildev/maildev:2.1.0
+    image: maildev/maildev:2.2.1
     ports:
       - "1080:1080"  # Web interface
       - "1025:1025"  # SMTP Server
