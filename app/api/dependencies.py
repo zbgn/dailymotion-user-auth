@@ -1,12 +1,9 @@
 """FastAPI dependency wiring for API layer."""
 
-from collections.abc import AsyncIterator
 from typing import Annotated
 
-import asyncpg
 from fastapi import Depends
 
-from app.infrastructure.db import get_db_connection
 from app.infrastructure.settings import Settings, get_settings
 from app.repositories.activation_token_repository import ActivationTokenRepository
 from app.repositories.user_repository import UserRepository
@@ -16,17 +13,6 @@ from app.services.auth_service import AuthService
 def get_app_settings() -> Settings:
     """Return application settings for dependency injection."""
     return get_settings()
-
-
-async def get_db_connection_dependency(
-    settings: Annotated[Settings, Depends(get_app_settings)],
-) -> AsyncIterator[asyncpg.Connection]:
-    """Provide a database connection in request scope."""
-    conn = await get_db_connection(settings.database_url)
-    try:
-        yield conn
-    finally:
-        await conn.close()
 
 
 def get_user_repository(
