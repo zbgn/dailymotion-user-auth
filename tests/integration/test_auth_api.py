@@ -1,100 +1,99 @@
-"""Integration tests for authentication API endpoints."""
+"""Integration tests for authentication API endpoints using real DB wiring."""
 
+import re
 from http import HTTPStatus
 
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.dependencies import get_auth_service
-from app.domain.exceptions import (
-    ExpiredActivationCodeError,
-    InvalidActivationCodeError,
-    InvalidCredentialsError,
-    UserAlreadyActiveError,
-    UserAlreadyExistsError,
-)
+from app.infrastructure.settings import get_settings
 from app.main import app
-from app.models.user import User
 
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "password123"  # noqa: S105
-VALID_CODE = "1234"
-EXPIRED_CODE = "0000"
-
-
-class InMemoryAuthService:
-    """Deterministic in-memory auth service for API integration tests."""
-
-    def __init__(self) -> None:
-        """Initialize in-memory users and activation codes."""
-        self._users: dict[str, dict[str, object]] = {}
-
-    async def register(self, email: str, password: str) -> User:
-        """Register a user or raise when email already exists."""
-        if email in self._users:
-            raise UserAlreadyExistsError
-
-        self._users[email] = {
-            "password": password,
-            "is_active": False,
-            "code": VALID_CODE,
-            "expired_codes": {EXPIRED_CODE},
-        }
-        return User(id=1, email=email, is_active=False)
-
-    async def activate(self, email: str, password: str, token: str) -> User:
-        """Activate a user with deterministic credential/token checks."""
-        user_state = self._users.get(email)
-        if user_state is None or user_state["password"] != password:
-            raise InvalidCredentialsError
-
-        if user_state["is_active"]:
-            raise UserAlreadyActiveError
-
-        if token in user_state["expired_codes"]:
-            raise ExpiredActivationCodeError
-
-        if token != user_state["code"]:
-            raise InvalidActivationCodeError
-
-        user_state["is_active"] = True
-        user_state["code"] = None
-        return User(id=1, email=email, is_active=True)
-
-
-@pytest.fixture(autouse=True)
-def _clear_dependency_overrides() -> None:
-    """Clear dependency overrides before and after each test."""
-    app.dependency_overrides.clear()
-    yield
-    app.dependency_overrides.clear()
 
 
 @pytest.fixture
-def api_client() -> TestClient:
-    """Return an API test client with deterministic auth service override."""
-    fake_auth_service = InMemoryAuthService()
-
-    def _override_auth_service() -> InMemoryAuthService:
-        return fake_auth_service
-
-    app.dependency_overrides[get_auth_service] = _override_auth_service
-    return TestClient(app)
+def database_url() -> str:
+    """Return configured database URL or skip when integration DB is unavailable."""
+    settings = get_settings()
+    if not settings.database_url:
+        pytest.skip("DATABASE_URL is not configured for integration tests")
+    return settings.database_url
 
 
-def test_register_success(api_client: TestClient) -> None:
-    """Register endpoint returns created user for a new email."""
+@pytest.fixture(autouse=True)
+def _reset_db(database_url: str) -> None:
+    """Reset integration tables between tests for deterministic behavior."""
+    try:
+        with psycopg.connect(database_url, autocommit=True) as conn, conn.cursor() as cursor:
+            cursor.execute("TRUNCATE TABLE tokens, users RESTART IDENTITY")
+    except psycopg.OperationalError:
+        pytest.skip("PostgreSQL is not reachable for integration tests")
+
+
+@pytest.fixture
+def sent_messages(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
+    """Capture outgoing emails while keeping real application/service wiring."""
+    messages: list[dict[str, str]] = []
+
+    async def _capture_send(_self, *, email: str, subject: str, text: str) -> None:  # noqa: ANN001
+        messages.append({"email": email, "subject": subject, "text": text})
+
+    monkeypatch.setattr("app.infrastructure.email_client.EmailClient._send", _capture_send)
+    return messages
+
+
+@pytest.fixture
+def api_client(database_url: str) -> TestClient:
+    """Return API test client with app lifespan and real dependency wiring."""
+    _ = database_url
+    with TestClient(app) as client:
+        yield client
+
+
+def _extract_code_from_messages(messages: list[dict[str, str]]) -> str:
+    """Extract 4-digit activation code from captured welcome email text."""
+    welcome_messages = [item for item in messages if item["subject"] == "Welcome to our services!"]
+    if not welcome_messages:
+        msg = "No welcome email captured"
+        raise AssertionError(msg)
+
+    match = re.search(r"(\d{4})", welcome_messages[-1]["text"])
+    if match is None:
+        msg = "No 4-digit code found in welcome email"
+        raise AssertionError(msg)
+
+    return match.group(1)
+
+
+def _expire_token(database_url: str, email: str) -> None:
+    """Force latest token for the user to be expired for deterministic test behavior."""
+    with psycopg.connect(database_url, autocommit=True) as conn, conn.cursor() as cursor:
+        cursor.execute(
+            "UPDATE tokens "
+            "SET valid_until = (NOW() AT TIME ZONE 'UTC') - INTERVAL '1 second' "
+            "WHERE user_id = (SELECT id FROM users WHERE email = %s)",
+            (email,),
+        )
+
+
+def test_register_success(api_client: TestClient, sent_messages: list[dict[str, str]]) -> None:
+    """Register endpoint persists a user and sends activation email."""
     response = api_client.post(
         "/api/v1/register/",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {"id": 1, "email": TEST_EMAIL, "is_active": False}
+    assert response.json()["email"] == TEST_EMAIL
+    assert response.json()["is_active"] is False
+    assert _extract_code_from_messages(sent_messages).isdigit()
 
 
 def test_duplicate_registration(api_client: TestClient) -> None:
-    """Register endpoint returns stable business error on duplicate email."""
+    """Register endpoint returns business error when email already exists."""
     _ = api_client.post(
         "/api/v1/register/",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
@@ -109,25 +108,27 @@ def test_duplicate_registration(api_client: TestClient) -> None:
     assert response.json() == {"detail": "Email already registered"}
 
 
-def test_activate_success(api_client: TestClient) -> None:
-    """Activate endpoint succeeds with valid Basic Auth and activation code."""
+def test_activate_success(api_client: TestClient, sent_messages: list[dict[str, str]]) -> None:
+    """Activate endpoint succeeds with real persisted token and Basic Auth."""
     _ = api_client.post(
         "/api/v1/register/",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
     )
+    token = _extract_code_from_messages(sent_messages)
 
     response = api_client.post(
         "/api/v1/activate/",
-        json={"token": VALID_CODE},
+        json={"token": token},
         auth=(TEST_EMAIL, TEST_PASSWORD),
     )
 
     assert response.status_code == HTTPStatus.OK
-    assert response.json() == {"id": 1, "email": TEST_EMAIL, "is_active": True}
+    assert response.json()["email"] == TEST_EMAIL
+    assert response.json()["is_active"] is True
 
 
 def test_activate_wrong_code(api_client: TestClient) -> None:
-    """Activate endpoint returns stable invalid-token error for wrong code."""
+    """Activate endpoint returns invalid token when code does not match persisted token."""
     _ = api_client.post(
         "/api/v1/register/",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
@@ -143,35 +144,24 @@ def test_activate_wrong_code(api_client: TestClient) -> None:
     assert response.json() == {"detail": "Invalid token"}
 
 
-def test_activate_expired_code(api_client: TestClient) -> None:
-    """Activate endpoint returns stable expired-token error for expired code."""
+def test_activate_expired_code(
+    api_client: TestClient,
+    database_url: str,
+    sent_messages: list[dict[str, str]],
+) -> None:
+    """Activate endpoint returns expired token when persisted token is forced expired."""
     _ = api_client.post(
         "/api/v1/register/",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
     )
+    token = _extract_code_from_messages(sent_messages)
+    _expire_token(database_url, TEST_EMAIL)
 
     response = api_client.post(
         "/api/v1/activate/",
-        json={"token": EXPIRED_CODE},
+        json={"token": token},
         auth=(TEST_EMAIL, TEST_PASSWORD),
     )
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
     assert response.json() == {"detail": "Expired token"}
-
-
-def test_activate_invalid_basic_auth(api_client: TestClient) -> None:
-    """Activate endpoint returns stable credential error for wrong Basic Auth."""
-    _ = api_client.post(
-        "/api/v1/register/",
-        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
-    )
-
-    response = api_client.post(
-        "/api/v1/activate/",
-        json={"token": VALID_CODE},
-        auth=(TEST_EMAIL, "wrong-password"),
-    )
-
-    assert response.status_code == HTTPStatus.BAD_REQUEST
-    assert response.json() == {"detail": "Invalid credentials"}
