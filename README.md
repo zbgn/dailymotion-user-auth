@@ -226,11 +226,11 @@ Registration email failure policy is explicit and fail-closed:
 - the API returns `503 Service Unavailable` with `{"detail":"Email delivery failed"}`
 - this avoids reporting a successful registration when no activation notification was delivered
 
-Activation confirmation email failure policy is explicit and fail-visible:
+Activation confirmation email failure policy is explicit and best-effort:
 
 - user activation is already committed in database transaction scope
-- if confirmation email delivery fails, the API still returns `503 Service Unavailable` with `{"detail":"Email delivery failed"}`
-- this keeps state changes explicit while clearly surfacing third-party notification failure
+- if confirmation email delivery fails, the service logs the failure and does not propagate it as an API error
+- the activation endpoint still returns success for the committed state change, keeping response contract consistent with persisted state
 
 This keeps transport-specific concerns outside business orchestration.
 

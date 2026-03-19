@@ -286,11 +286,11 @@ async def test_activate_success(
 
 
 @pytest.mark.asyncio
-async def test_activate_email_failure_is_surfaced(
+async def test_activate_email_failure_is_logged_and_not_surfaced(
     fake_connection: _FakeConnection,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Activate raises explicit delivery error if confirmation email fails."""
+    """Activate still succeeds when confirmation email fails after commit."""
     _ = fake_connection
     error_msg = "smtp down"
 
@@ -307,9 +307,9 @@ async def test_activate_email_failure_is_surfaced(
         token_repository=token_repo,
     )
 
-    with pytest.raises(EmailDeliveryFailedError):
-        await service.activate(TEST_EMAIL, TEST_PASSWORD, "1234")
+    result = await service.activate(TEST_EMAIL, TEST_PASSWORD, "1234")
 
+    assert result.is_active is True
     assert user_repo.activate_called_with == 1
     assert token_repo.invalidated_user_id == 1
 

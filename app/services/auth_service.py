@@ -1,5 +1,6 @@
 """Application service for authentication use cases."""
 
+import logging
 import secrets
 from typing import Protocol
 
@@ -21,6 +22,8 @@ from app.models.user import User
 from app.repositories.activation_token_repository import ActivationTokenRepository
 from app.repositories.user_repository import UserRepository
 from app.services.email_service import EmailSubject, send_email
+
+logger = logging.getLogger(__name__)
 
 
 class UserRepositoryPort(Protocol):
@@ -158,6 +161,6 @@ class AuthService:
         try:
             await send_email(email, EmailSubject.ACTIVATED)
         except Exception as exc:
-            raise EmailDeliveryFailedError from exc
+            logger.exception("Activation confirmation email delivery failed for %s", email, exc_info=exc)
 
         return updated_user

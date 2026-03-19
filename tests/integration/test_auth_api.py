@@ -13,6 +13,7 @@ from app.main import app
 
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "password123"  # noqa: S105
+SMTP_DOWN_ERROR = "smtp down"
 
 
 @pytest.fixture
@@ -116,6 +117,36 @@ def test_activate_success(api_client: TestClient, sent_messages: list[dict[str, 
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
     )
     token = _extract_code_from_messages(sent_messages)
+
+    response = api_client.post(
+        "/api/v1/activate/",
+        json={"token": token},
+        auth=(TEST_EMAIL, TEST_PASSWORD),
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.json()["email"] == TEST_EMAIL
+    assert response.json()["is_active"] is True
+
+
+def test_activate_success_when_confirmation_email_fails(
+    api_client: TestClient,
+    sent_messages: list[dict[str, str]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Activate endpoint remains successful after committed state change even if email delivery fails."""
+    _ = api_client.post(
+        "/api/v1/register/",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
+    token = _extract_code_from_messages(sent_messages)
+
+    async def _fail_only_activation_email(_self, *, email: str, subject: str, text: str) -> None:  # noqa: ANN001
+        _ = email, text
+        if subject == "Your account has been activated":
+            raise RuntimeError(SMTP_DOWN_ERROR)
+
+    monkeypatch.setattr("app.infrastructure.email_client.EmailClient._send", _fail_only_activation_email)
 
     response = api_client.post(
         "/api/v1/activate/",
