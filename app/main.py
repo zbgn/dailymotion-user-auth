@@ -31,7 +31,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Dailymotion Auth",
     description="A simple authentication service",
-    version="0.1.0",
+    version="2026.3.18",
     lifespan=lifespan,
 )
 

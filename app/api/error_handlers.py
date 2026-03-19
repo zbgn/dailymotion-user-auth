@@ -44,4 +44,3 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(ExpiredActivationCodeError)
     async def handle_expired_activation_code(_: Request, __: ExpiredActivationCodeError) -> JSONResponse:
         return _error_response(status.HTTP_400_BAD_REQUEST, "Expired token")
-
