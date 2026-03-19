@@ -20,7 +20,7 @@ jobs:
       - name: Ruff format backend
         run: uv run ruff format --check .
 
-  tests:
+  unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.2
@@ -32,5 +32,39 @@ jobs:
         uses: astral-sh/setup-uv@v7.6.0
       - name: Install test dependencies
         run: uv sync --group test
-      - name: Run tests
-        run: uv run pytest
+      - name: Run unit tests
+        run: uv run pytest tests/unit
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: dbname
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U user -d dbname"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://user:password@localhost:5432/dbname
+      SMTP_SERVER: localhost
+      SMTP_PORT: 1025
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6.2.0
+        with:
+          python-version: '3.12'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7.6.0
+      - name: Install test dependencies
+        run: uv sync --group test
+      - name: Run integration tests
+        run: uv run pytest tests/integration
