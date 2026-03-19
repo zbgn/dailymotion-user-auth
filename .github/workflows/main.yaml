@@ -68,5 +68,17 @@ jobs:
         uses: astral-sh/setup-uv@v7.6.0
       - name: Install test dependencies
         run: uv sync --group test
+      - name: Initialize integration database schema
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+
+          import psycopg
+
+          sql = Path("postgres-entrypoint-initdb.d/001_init_db.sql").read_text(encoding="utf-8")
+          with psycopg.connect("postgresql://user:password@localhost:5432/dbname", autocommit=True) as conn:
+              with conn.cursor() as cursor:
+                  cursor.execute(sql)
+          PY
       - name: Run integration tests
         run: uv run pytest tests/integration
