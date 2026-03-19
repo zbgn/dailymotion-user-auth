@@ -18,7 +18,7 @@ services:
       TZ: Europe/Paris
 
   db:
-    image: postgres:16
+    image: postgres:18
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres-entrypoint-initdb.d:/docker-entrypoint-initdb.d
