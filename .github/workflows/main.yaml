@@ -12,7 +12,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7.6.0
+        uses: astral-sh/setup-uv@v8.3.2
       - name: Install lint dependencies
         run: uv sync --group dev --group test
       - name: Ruff check backend
@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7.6.0
+        uses: astral-sh/setup-uv@v8.3.2
       - name: Install test dependencies
         run: uv sync --group test
       - name: Run unit tests
@@ -65,7 +65,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7.6.0
+        uses: astral-sh/setup-uv@v8.3.2
       - name: Install test dependencies
         run: uv sync --group test
       - name: Initialize integration database schema
